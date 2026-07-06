@@ -426,6 +426,20 @@ function isSchemaAlreadyApplied(
       // was dropped on integration; this canonical migration creates the table
       // that recordPluginExecution()/getPluginAnalytics() rely on.
       return hasTable(db, "plugin_analytics");
+    case "118":
+      return (
+        hasTable(db, "users") &&
+        hasTable(db, "wallets") &&
+        hasTable(db, "marketplace_listings") &&
+        hasColumn(db, "provider_connections", "owner_user_id") &&
+        hasColumn(db, "api_keys", "owner_user_id")
+      );
+    case "119":
+      return (
+        hasTable(db, "stripe_topup_intents") &&
+        hasTable(db, "stripe_payout_requests") &&
+        hasTable(db, "stripe_event_log")
+      );
     default:
       return false;
   }

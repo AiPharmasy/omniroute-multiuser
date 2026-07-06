@@ -111,6 +111,27 @@ export {
   resetApiKeyState,
 } from "./db/apiKeys";
 
+// Multi-user platform: users, sessions, multi-user mode flag.
+export {
+  getUserById,
+  getUserByEmail,
+  listUsers,
+  createUser,
+  updateUser,
+  updateUserPassword,
+  getUserCredential,
+  createUserSession,
+  revokeUserSession,
+  isUserSessionRevoked,
+  isMultiUserModeEnabled,
+  listApiKeysForUser,
+  listProviderConnectionsForUser,
+  SYSTEM_USER_ID,
+  PLATFORM_USER_ID,
+  type User,
+  type UserRole,
+} from "./db/users";
+
 export {
   // Evals
   saveEvalRun,
