@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sanitizeErrorMessage } from "@omniroute/open-sse/utils/error.ts";
 import { z } from "zod";
 import { getListingById, getListingBySlug, updateListing, deleteListing, ListingError } from "@/lib/marketplace/listings";
 import { verifyUserJwt } from "@/lib/auth/userAuth";
@@ -49,7 +50,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const listing = updateListing(id, parsed.data, actorUserId);
     return NextResponse.json({ listing });
   } catch (error) {
-    if (error instanceof ListingError) return NextResponse.json({ error: error.message }, { status: error.httpStatus });
+    if (error instanceof ListingError) return NextResponse.json({ error: sanitizeErrorMessage(error.message) }, { status: error.httpStatus });
     console.error("[MARKETPLACE] update failed:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -63,7 +64,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     if (!deleted) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof ListingError) return NextResponse.json({ error: error.message }, { status: error.httpStatus });
+    if (error instanceof ListingError) return NextResponse.json({ error: sanitizeErrorMessage(error.message) }, { status: error.httpStatus });
     console.error("[MARKETPLACE] delete failed:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

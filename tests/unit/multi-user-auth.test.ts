@@ -38,7 +38,7 @@ test("createUser inserts a user, credential, and wallet atomically", () => {
   const cred = usersDb.getUserCredential(user.id);
   assert.ok(cred);
   const db = core.getDbInstance();
-  const wallet = db.prepare("SELECT * FROM wallets WHERE owner_user_id = ?").get(user.id) as any;
+  const wallet = db.prepare("SELECT * FROM wallets WHERE owner_user_id = ?").get(user.id) as { balance_credits: number };
   assert.ok(wallet);
   assert.equal(wallet.balance_credits, 0);
 });
@@ -67,12 +67,12 @@ test("registerUser creates a usable account and returns a JWT", async () => {
 });
 
 test("registerUser rejects short passwords", async () => {
-  await assert.rejects(() => userAuth.registerUser({ email: "weak@example.com", password: "123" }), (err: any) => err.code === "weak_password");
+  await assert.rejects(() => userAuth.registerUser({ email: "weak@example.com", password: "123" }), (err: unknown) => (err as { code?: string }).code === "weak_password");
 });
 
 test("registerUser rejects duplicate email", async () => {
   await userAuth.registerUser({ email: "dup2@example.com", password: "password1" });
-  await assert.rejects(() => userAuth.registerUser({ email: "DUP2@example.com", password: "password1" }), (err: any) => err.code === "email_taken");
+  await assert.rejects(() => userAuth.registerUser({ email: "DUP2@example.com", password: "password1" }), (err: unknown) => (err as { code?: string }).code === "email_taken");
 });
 
 test("loginUser succeeds with correct credentials", async () => {
@@ -85,13 +85,13 @@ test("loginUser succeeds with correct credentials", async () => {
 
 test("loginUser fails with wrong password", async () => {
   await userAuth.registerUser({ email: "eve@example.com", password: "right-password-1" });
-  await assert.rejects(() => userAuth.loginUser({ email: "eve@example.com", password: "wrong" }), (err: any) => err.code === "invalid_credentials");
+  await assert.rejects(() => userAuth.loginUser({ email: "eve@example.com", password: "wrong" }), (err: unknown) => (err as { code?: string }).code === "invalid_credentials");
 });
 
 test("loginUser fails for disabled account", async () => {
   const { user } = await userAuth.registerUser({ email: "disabled@example.com", password: "password123" });
   usersDb.updateUser(user.id, { isActive: false });
-  await assert.rejects(() => userAuth.loginUser({ email: "disabled@example.com", password: "password123" }), (err: any) => err.code === "account_disabled");
+  await assert.rejects(() => userAuth.loginUser({ email: "disabled@example.com", password: "password123" }), (err: unknown) => (err as { code?: string }).code === "account_disabled");
 });
 
 test("verifyUserJwt returns null for revoked session", async () => {
@@ -104,13 +104,13 @@ test("verifyUserJwt returns null for revoked session", async () => {
 
 test("changeUserPassword rejects wrong current password", async () => {
   const { user } = await userAuth.registerUser({ email: "change@example.com", password: "original-pw-1" });
-  await assert.rejects(() => userAuth.changeUserPassword(user.id, "wrong", "newpassword"), (err: any) => err.code === "invalid_credentials");
+  await assert.rejects(() => userAuth.changeUserPassword(user.id, "wrong", "newpassword"), (err: unknown) => (err as { code?: string }).code === "invalid_credentials");
 });
 
 test("changeUserPassword succeeds with correct current password", async () => {
   const { user } = await userAuth.registerUser({ email: "change2@example.com", password: "original-pw-1" });
   await userAuth.changeUserPassword(user.id, "original-pw-1", "newpassword-1");
-  await assert.rejects(() => userAuth.loginUser({ email: "change2@example.com", password: "original-pw-1" }), (err: any) => err.code === "invalid_credentials");
+  await assert.rejects(() => userAuth.loginUser({ email: "change2@example.com", password: "original-pw-1" }), (err: unknown) => (err as { code?: string }).code === "invalid_credentials");
   const result = await userAuth.loginUser({ email: "change2@example.com", password: "newpassword-1" });
   assert.equal(result.user.email, "change2@example.com");
 });

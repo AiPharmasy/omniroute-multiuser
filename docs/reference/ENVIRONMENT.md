@@ -75,6 +75,22 @@ echo "OMNIROUTE_WS_BRIDGE_SECRET=$(openssl rand -base64 32)"
 
 ---
 
+## 1b. Multi-User Platform Mode
+
+These variables control the optional multi-user marketplace mode (pay-as-you-go provider sharing with commission).
+
+| Variable | Required | Default | Source File | Description |
+| --- | --- | --- | --- | --- |
+| `OMNIROUTE_MULTI_USER` | No | `false` | `src/lib/db/users.ts` | When `true`, enables multi-user mode: email+password registration, per-user wallets, marketplace, and commission billing. When `false` (default), the platform stays in legacy single-user mode. |
+| `OMNIROUTE_DEFAULT_COMMISSION_RATE` | No | `0.10` | `src/lib/billing/commission.ts` | Default commission rate (0..1) the platform takes on every consumption. Seeded in `commission_settings` table by migration 117; overridable at runtime. |
+| `OMNIROUTE_MIN_REQUEST_FLOOR_USD` | No | `0.01` | `src/sse/handlers/chat.ts` | Pre-flight wallet balance floor (USD). When > 0, requests from real-user API keys are rejected with HTTP 402 if the consumer's wallet can't cover this floor. Set to `0` to disable the pre-flight gate. |
+| `STRIPE_SECRET_KEY` | No | _(empty)_ | `src/lib/billing/stripe.ts` | Stripe API secret key (`sk_test_...` or `sk_live_...`). When empty, top-up and payout endpoints return 503. |
+| `STRIPE_WEBHOOK_SECRET` | No | _(empty)_ | `src/app/api/webhooks/stripe/route.ts` | Stripe webhook signing secret (`whsec_...`) for signature verification. Required when `STRIPE_SECRET_KEY` is set. |
+| `STRIPE_PUBLISHABLE_KEY` | No | _(empty)_ | _(client-side detection)_ | Stripe publishable key (`pk_test_...` or `pk_live_...`). Currently used only for client-side Stripe availability detection. |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | No | _(empty)_ | _(reserved)_ | Stripe Connect webhook secret for payout events. Falls back to `STRIPE_WEBHOOK_SECRET` when unset. |
+
+---
+
 ## 2. Storage & Database
 
 OmniRoute uses **SQLite** (via `better-sqlite3`) for all persistence. These variables control data location, encryption, and lifecycle.

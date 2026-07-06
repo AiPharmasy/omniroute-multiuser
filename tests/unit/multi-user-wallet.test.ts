@@ -60,7 +60,7 @@ test("debitConsumer succeeds when balance is sufficient", () => {
 test("debitConsumer rejects with insufficient_balance when balance too low", () => {
   const user = usersDb.createUser({ email: "u5@example.com", passwordHash: "x" });
   walletMod.topUpWallet(user.id, 10.0, "idem-topup-4");
-  assert.throws(() => walletMod.debitConsumer(user.id, 50.0, "idem-debit-2"), (err: any) => err.code === "insufficient_balance" && err.httpStatus === 402);
+  assert.throws(() => walletMod.debitConsumer(user.id, 50.0, "idem-debit-2"), (err: unknown) => (err as { code?: string }).code === "insufficient_balance" && err.httpStatus === 402);
   assert.equal(walletMod.getWalletBalance(user.id), 10.0);
 });
 

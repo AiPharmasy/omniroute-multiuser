@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sanitizeErrorMessage } from "@omniroute/open-sse/utils/error.ts";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { registerUser, AuthError } from "@/lib/auth/userAuth";
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
         ipAddress: auditContext.ipAddress || undefined, requestId: auditContext.requestId,
         metadata: { code: error.code, email: parsed.data.email },
       });
-      return NextResponse.json({ error: error.message }, { status: error.httpStatus });
+      return NextResponse.json({ error: sanitizeErrorMessage(error.message) }, { status: error.httpStatus });
     }
     console.error("[AUTH] Register failed:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

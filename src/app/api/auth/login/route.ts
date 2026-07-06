@@ -9,6 +9,7 @@ import {
   verifyManagementPassword,
 } from "@/lib/auth/managementPassword";
 import { loginUser, AuthError } from "@/lib/auth/userAuth";
+import { sanitizeErrorMessage } from "@omniroute/open-sse/utils/error.ts";
 import { isMultiUserModeEnabled } from "@/lib/db/users";
 import { loginSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
@@ -144,7 +145,7 @@ export async function POST(request) {
               { status: 429, headers: failureDecision.retryAfterSeconds ? { "Retry-After": String(failureDecision.retryAfterSeconds) } : {} }
             );
           }
-          return NextResponse.json({ error: error.message }, { status: error.httpStatus });
+          return NextResponse.json({ error: sanitizeErrorMessage(error.message) }, { status: error.httpStatus });
         }
         throw error;
       }
