@@ -1,0 +1,22 @@
+import { NextResponse } from "next/server";
+import { verifyUserJwt } from "@/lib/auth/userAuth";
+import { isMultiUserModeEnabled, listApiKeysForUser } from "@/lib/db/users";
+import { getSettings } from "@/lib/localDb";
+
+async function requireUser(request: Request): Promise<{ userId: string } | null> {
+  const settings = await getSettings();
+  if (!isMultiUserModeEnabled(settings as never)) return null;
+  const cookieHeader = request.headers.get("cookie") || "";
+  const match = cookieHeader.match(/auth_token=([^;]+)/);
+  if (!match) return null;
+  const claims = await verifyUserJwt(match[1]);
+  if (!claims) return null;
+  return { userId: claims.sub };
+}
+
+export async function GET(request: Request) {
+  const user = await requireUser(request);
+  if (!user) return NextResponse.json({ error: "Multi-user mode + auth required" }, { status: 404 });
+  const keys = listApiKeysForUser(user.userId);
+  return NextResponse.json({ apiKeys: keys, count: keys.length });
+}

@@ -8,6 +8,8 @@ import {
   getStoredManagementPassword,
   verifyManagementPassword,
 } from "@/lib/auth/managementPassword";
+import { loginUser, AuthError } from "@/lib/auth/userAuth";
+import { isMultiUserModeEnabled } from "@/lib/db/users";
 import { loginSchema } from "@/shared/validation/schemas";
 import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 import { checkLoginGuard, clearLoginAttempts, recordLoginFailure } from "@/server/auth/loginGuard";
@@ -72,6 +74,7 @@ export async function POST(request) {
     if (!password) {
       return NextResponse.json({ error: "Invalid password payload" }, { status: 400 });
     }
+    const emailField = (rawBody as { email?: unknown })?.email;
     const settings = await getSettings();
     const bruteForceEnabled = settings.bruteForceProtection !== false;
     const clientIp = auditContext.ipAddress || null;
@@ -97,6 +100,54 @@ export async function POST(request) {
             : {},
         }
       );
+    }
+
+    // ─── Multi-user login path (email + password) ───
+    if (typeof emailField === "string" && emailField.length > 0 && isMultiUserModeEnabled(settings as never)) {
+      try {
+        const { user, token, legacyFallback } = await loginUser({
+          email: emailField, password, ipAddress: clientIp ?? undefined,
+        });
+        const forceSecureCookie = process.env.AUTH_COOKIE_SECURE === "true";
+        const forwardedProtoHeader = request.headers.get("x-forwarded-proto") || "";
+        const forwardedProto = forwardedProtoHeader.split(",")[0].trim().toLowerCase();
+        const isHttpsRequest = forwardedProto === "https" || request.nextUrl?.protocol === "https:";
+        const useSecureCookie = forceSecureCookie || isHttpsRequest;
+        const cookieStore = await authRouteInternals.getCookieStore();
+        cookieStore.set("auth_token", token, {
+          httpOnly: true, secure: useSecureCookie, sameSite: "lax", path: "/",
+          maxAge: 60 * 60 * 24 * 30,
+        });
+        logAuditEvent({
+          action: "auth.login.success", actor: user.id, target: "dashboard-auth",
+          resourceType: "auth_session", status: "success",
+          ipAddress: clientIp || undefined, requestId: auditContext.requestId,
+          metadata: { mode: "multi_user", email: user.email, role: user.role, legacyFallback },
+        });
+        clearLoginAttempts(clientIp);
+        return NextResponse.json({
+          success: true,
+          user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role },
+        });
+      } catch (error) {
+        if (error instanceof AuthError) {
+          const failureDecision = recordLoginFailure(clientIp, { enabled: bruteForceEnabled });
+          logAuditEvent({
+            action: "auth.login.failed", actor: "anonymous", target: "dashboard-auth",
+            resourceType: "auth_session", status: "failed",
+            ipAddress: clientIp || undefined, requestId: auditContext.requestId,
+            metadata: { mode: "multi_user", code: error.code, lockedOut: failureDecision.allowed === false },
+          });
+          if (!failureDecision.allowed) {
+            return NextResponse.json(
+              { error: "Too many failed attempts. Try again later." },
+              { status: 429, headers: failureDecision.retryAfterSeconds ? { "Retry-After": String(failureDecision.retryAfterSeconds) } : {} }
+            );
+          }
+          return NextResponse.json({ error: error.message }, { status: error.httpStatus });
+        }
+        throw error;
+      }
     }
 
     const passwordState = await ensurePersistentManagementPasswordHash({
