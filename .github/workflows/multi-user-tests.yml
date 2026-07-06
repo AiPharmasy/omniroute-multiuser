@@ -7,18 +7,23 @@ on:
     branches: [main]
 
 jobs:
-  multi-user:
-    name: Multi-User Unit Tests
+  test:
+    name: Multi-User Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      DATA_DIR: /tmp/omniroute-test
+      DISABLE_SQLITE_AUTO_BACKUP: "true"
+      OMNIROUTE_MULTI_USER: "true"
+      JWT_SECRET: ci-test-jwt-secret-32chars-min
+      API_KEY_SECRET: ci-test-api-key-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: "npm"
       - run: npm ci --no-audit --no-fund
-      - name: Run multi-user test suite
+      - name: Multi-user unit tests
         run: |
           node --import tsx/esm --import ./open-sse/utils/setupPolyfill.ts --import ./tests/_setup/isolateDataDir.ts --test --test-force-exit \
             tests/unit/migration-116-smoke.test.ts \
@@ -27,68 +32,9 @@ jobs:
             tests/unit/multi-user-marketplace.test.ts \
             tests/unit/multi-user-stripe.test.ts \
             tests/unit/multi-user-preflight-gating.test.ts
-        env:
-          DATA_DIR: /tmp/omniroute-test
-          DISABLE_SQLITE_AUTO_BACKUP: "true"
-          OMNIROUTE_MULTI_USER: "true"
-          JWT_SECRET: ci-test-jwt-secret-32chars-min
-          API_KEY_SECRET: ci-test-api-key-secret
-
-  db-tests:
-    name: DB Tests (backward compat)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "npm"
-      - run: npm ci --no-audit --no-fund
-      - name: Run db tests
-        run: |
-          node --max-old-space-size=4096 --import tsx/esm --import ./open-sse/utils/setupPolyfill.ts --import ./tests/_setup/isolateDataDir.ts --test --test-concurrency=4 --test-force-exit \
-            "tests/unit/db*.test.ts"
-        env:
-          DATA_DIR: /tmp/omniroute-test
-          DISABLE_SQLITE_AUTO_BACKUP: "true"
-
-  auth-tests:
-    name: Auth + Authz Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "npm"
-      - run: npm ci --no-audit --no-fund
-      - name: Run auth + authz tests
-        run: |
-          node --max-old-space-size=4096 --import tsx/esm --import ./open-sse/utils/setupPolyfill.ts --import ./tests/_setup/isolateDataDir.ts --test --test-concurrency=4 --test-force-exit \
-            "tests/unit/authz/*.test.ts" "tests/unit/auth/*.test.ts" \
-            tests/unit/api-key-lifecycle.test.ts tests/unit/api-key-scope-validation.test.ts \
-            tests/unit/api-keys.test.ts tests/unit/management-password.test.ts \
-            tests/unit/access-tokens-db.test.ts tests/unit/access-token-scopes.test.ts
-        env:
-          DATA_DIR: /tmp/omniroute-test
-          DISABLE_SQLITE_AUTO_BACKUP: "true"
-
-  typecheck-lint:
-    name: Typecheck + Lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "npm"
-      - run: npm ci --no-audit --no-fund
       - name: Typecheck
         run: npm run typecheck:core
-      - name: Lint (multi-user files only)
+      - name: Lint multi-user files
         run: |
           npx eslint \
             src/lib/billing/ src/lib/marketplace/ src/lib/db/users.ts src/lib/db/apiKeys.ts \
@@ -102,23 +48,3 @@ jobs:
             "src/app/(dashboard)/dashboard/account/" \
             "src/app/(dashboard)/dashboard/marketplace/" \
             tests/unit/migration-116-smoke.test.ts tests/unit/multi-user-*.test.ts
-
-  usage-security:
-    name: Usage + Security + Correctness Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "npm"
-      - run: npm ci --no-audit --no-fund
-      - name: Run usage + security + correctness tests
-        run: |
-          node --max-old-space-size=4096 --import tsx/esm --import ./open-sse/utils/setupPolyfill.ts --import ./tests/_setup/isolateDataDir.ts --test --test-concurrency=4 --test-force-exit \
-            "tests/unit/usage*.test.ts" "tests/unit/security/*.test.ts" \
-            "tests/unit/cors*.test.ts" "tests/unit/correctness/*.test.ts"
-        env:
-          DATA_DIR: /tmp/omniroute-test
-          DISABLE_SQLITE_AUTO_BACKUP: "true"
