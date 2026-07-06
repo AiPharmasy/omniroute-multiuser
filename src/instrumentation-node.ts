@@ -162,6 +162,16 @@ export async function registerNodejs(): Promise<void> {
   console.log("[STARTUP] Spend batch writer started");
   console.log("[STARTUP] Guardrail registry initialized");
   console.log("[STARTUP] Builtin skill handlers registered");
+
+  // Multi-user platform: subscribe the consumption billing listener.
+  try {
+    const { initBillingListener } = await import("@/lib/billing/billingListener");
+    initBillingListener();
+    console.log("[STARTUP] Multi-user billing listener initialized");
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn("[STARTUP] Multi-user billing listener failed to initialize (non-fatal):", msg);
+  }
   if (!isBackgroundServicesDisabled()) {
     startBackgroundRefresh();
     console.log("[STARTUP] Quota cache background refresh started");

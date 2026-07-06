@@ -95,6 +95,8 @@ interface ApiKeyMetadata {
   usageLimitEnabled: boolean;
   dailyUsageLimitUsd: number | null;
   weeklyUsageLimitUsd: number | null;
+  /** Multi-user platform: the user who owns this API key. Defaults to 'system'. */
+  ownerUserId: string;
 }
 
 interface ApiKeyRow extends JsonRecord {
@@ -216,6 +218,15 @@ function invalidateCaches() {
 
 function toRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" ? (value as JsonRecord) : {};
+}
+
+/**
+ * Multi-user platform: parse the owner_user_id column on api_keys. Returns
+ * 'system' when the column is null/empty (legacy single-user keys).
+ */
+function parseOwnerUserId(value: unknown): string {
+  if (typeof value === "string" && value.length > 0) return value;
+  return "system";
 }
 
 function isConfiguredEnvApiKey(key: string): boolean {
@@ -393,7 +404,7 @@ function getPreparedStatements(db: ApiKeysDbLike): ApiKeysStatements {
       "SELECT id, expires_at, revoked_at, is_active, is_banned FROM api_keys WHERE key = ? OR key_hash = ?"
     );
     _stmtGetKeyMetadata = db.prepare<ApiKeyRow>(
-      "SELECT id, name, machine_id, allowed_models, blocked_models, allowed_combos, allowed_connections, allowed_quotas, no_log, auto_resolve, is_active, access_schedule, max_requests_per_day, max_requests_per_minute, throttle_delay_ms, max_sessions, revoked_at, expires_at, ip_allowlist, scopes, rate_limits, is_banned, key_hash, allowed_endpoints, stream_default_mode, disable_non_public_models, allow_usage_command, usage_limit_enabled, daily_usage_limit_usd, weekly_usage_limit_usd, proxy_id FROM api_keys WHERE key = ? OR key_hash = ?"
+      "SELECT id, name, machine_id, allowed_models, blocked_models, allowed_combos, allowed_connections, allowed_quotas, no_log, auto_resolve, is_active, access_schedule, max_requests_per_day, max_requests_per_minute, throttle_delay_ms, max_sessions, revoked_at, expires_at, ip_allowlist, scopes, rate_limits, is_banned, key_hash, allowed_endpoints, stream_default_mode, disable_non_public_models, allow_usage_command, usage_limit_enabled, daily_usage_limit_usd, weekly_usage_limit_usd, proxy_id, owner_user_id FROM api_keys WHERE key = ? OR key_hash = ?"
     );
     _stmtInsertKey = db.prepare(
       "INSERT INTO api_keys (id, name, key, machine_id, allowed_models, no_log, created_at, key_prefix, key_hash, scopes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -1190,6 +1201,7 @@ export async function getApiKeyMetadata(
       usageLimitEnabled: false,
       dailyUsageLimitUsd: null,
       weeklyUsageLimitUsd: null,
+      ownerUserId: "system",
     };
   }
 
@@ -1264,6 +1276,7 @@ export async function getApiKeyMetadata(
       (record as JsonRecord).allow_usage_command ?? (record as JsonRecord).allowUsageCommand
     ),
     ...parseApiKeyUsageLimitFields(record as JsonRecord),
+    ownerUserId: parseOwnerUserId((record as JsonRecord).owner_user_id),
   };
 
   if (!metadata.id) {

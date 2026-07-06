@@ -13,13 +13,39 @@
 
 export type UsageRecordedListener = (provider: string, connectionId: string) => void;
 
+/** A full usage-recorded event with the inserted row id and entry payload. */
+export interface UsageRecordedFullEvent {
+  usageHistoryId: number;
+  provider: string | null;
+  connectionId: string | null;
+  apiKeyId: string | null;
+  model: string | null;
+  tokensInput: number;
+  tokensOutput: number;
+  status: string | null;
+  success: boolean;
+  /** The original entry passed to saveRequestUsage (preserves arbitrary fields). */
+  entry: Record<string, unknown>;
+}
+
+export type UsageRecordedFullListener = (event: UsageRecordedFullEvent) => void;
+
 const listeners = new Set<UsageRecordedListener>();
+const fullListeners = new Set<UsageRecordedFullListener>();
 
 /** Register a listener for usage-recorded events. Returns an unsubscribe fn. */
 export function onUsageRecorded(listener: UsageRecordedListener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+  };
+}
+
+/** Register a listener for the full usage-recorded event (with row id + entry). */
+export function onUsageRecordedFull(listener: UsageRecordedFullListener): () => void {
+  fullListeners.add(listener);
+  return () => {
+    fullListeners.delete(listener);
   };
 }
 
@@ -35,6 +61,18 @@ export function emitUsageRecorded(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[usageEvents] usage-recorded listener failed: ${message}`);
+    }
+  }
+}
+
+/** Emit the full usage-recorded event with the inserted row id + entry. */
+export function emitUsageRecordedFull(event: UsageRecordedFullEvent): void {
+  for (const listener of fullListeners) {
+    try {
+      listener(event);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[usageEvents] usage-recorded-full listener failed: ${message}`);
     }
   }
 }
