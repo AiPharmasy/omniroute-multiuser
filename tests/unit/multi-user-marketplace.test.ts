@@ -53,7 +53,7 @@ test("createListing publishes a connection as a per_token listing", async () => 
   assert.equal(listing.pricingModel, "per_token");
   assert.equal(listing.isActive, true);
   const db = core.getDbInstance();
-  const row = db.prepare("SELECT is_public, marketplace_listing_id FROM provider_connections WHERE id = ?").get(conn.id) as any;
+  const row = db.prepare("SELECT is_public, marketplace_listing_id FROM provider_connections WHERE id = ?").get(conn.id) as { is_public: number; marketplace_listing_id: string | null };
   assert.equal(row.is_public, 1);
   assert.equal(row.marketplace_listing_id, listing.id);
 });
@@ -62,7 +62,7 @@ test("createListing rejects when neither connectionId nor quotaPoolId is provide
   const owner = seedUser("owner2@example.com");
   assert.throws(() => listingsMod.createListing({
     title: "no resource", ownerUserId: owner.id, pricingModel: "per_token", pricePer1kInputTokensUsd: 0.01,
-  }), (err: any) => err.code === "missing_resource");
+  }), (err: unknown) => (err as { code?: string }).code === "missing_resource");
 });
 
 test("createListing auto-generates a unique slug from the title", () => {
@@ -98,7 +98,7 @@ test("updateListing rejects non-owner with forbidden", async () => {
   const bob = seedUser("bob2@example.com");
   const conn = await seedConnection(alice.id, "openai");
   const listing = listingsMod.createListing({ title: "Alice's", ownerUserId: alice.id, connectionId: conn.id, pricingModel: "per_request", pricePerRequestUsd: 0.001 });
-  assert.throws(() => listingsMod.updateListing(listing.id, { title: "Hacked" }, bob.id), (err: any) => err.code === "forbidden" && err.httpStatus === 403);
+  assert.throws(() => listingsMod.updateListing(listing.id, { title: "Hacked" }, bob.id), (err: unknown) => (err as { code?: string }).code === "forbidden" && err.httpStatus === 403);
 });
 
 test("deleteListing unpublishes the connection and removes the row", async () => {
@@ -109,7 +109,7 @@ test("deleteListing unpublishes the connection and removes the row", async () =>
   assert.equal(deleted, true);
   assert.equal(listingsMod.getListingById(listing.id), null);
   const db = core.getDbInstance();
-  const row = db.prepare("SELECT is_public, marketplace_listing_id FROM provider_connections WHERE id = ?").get(conn.id) as any;
+  const row = db.prepare("SELECT is_public, marketplace_listing_id FROM provider_connections WHERE id = ?").get(conn.id) as { is_public: number; marketplace_listing_id: string | null };
   assert.equal(row.is_public, 0);
   assert.equal(row.marketplace_listing_id, null);
 });
@@ -156,7 +156,7 @@ test("getProviderConnections scoped to a user returns only their rows", async ()
   await seedConnection(userB.id, "openai");
   const alicesOnly = await providersDb.getProviderConnections({ ownerUserId: userA.id });
   assert.equal(alicesOnly.length, 2);
-  assert.ok(alicesOnly.every((c: any) => c.ownerUserId === userA.id));
+  assert.ok(alicesOnly.every((c: Record<string, unknown>) => c.ownerUserId === userA.id));
 });
 
 test("getProviderConnections with includePublic sees other users' public rows", async () => {
@@ -167,7 +167,7 @@ test("getProviderConnections with includePublic sees other users' public rows", 
   await seedConnection(userB.id, "openai", false);
   const bPlusPublic = await providersDb.getProviderConnections({ ownerUserId: userB.id, includePublic: true });
   assert.equal(bPlusPublic.length, 2);
-  const owners = new Set(bPlusPublic.map((c: any) => c.ownerUserId));
+  const owners = new Set(bPlusPublic.map((c: Record<string, unknown>) => c.ownerUserId));
   assert.ok(owners.has(userB.id));
   assert.ok(owners.has(userA.id));
 });

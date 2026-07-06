@@ -34,14 +34,14 @@ test("migration 116 creates the users / wallets / marketplace tables", () => {
 
 test("commission_settings is seeded with the 10% default row", () => {
   const db = core.getDbInstance();
-  const row = db.prepare("SELECT * FROM commission_settings WHERE id = 1").get() as any;
+  const row = db.prepare("SELECT * FROM commission_settings WHERE id = 1").get() as { commission_rate: number; min_payout_usd: number };
   assert.ok(row);
   assert.equal(row.commission_rate, 0.10);
 });
 
 test("provider_connections has owner_user_id defaulting to 'system'", () => {
   const db = core.getDbInstance();
-  const cols = db.prepare("PRAGMA table_info(provider_connections)").all() as any[];
+  const cols = db.prepare("PRAGMA table_info(provider_connections)").all() as Array<{ name: string; dflt_value?: string }>;
   const ownerCol = cols.find((c) => c.name === "owner_user_id");
   assert.ok(ownerCol);
   assert.equal(ownerCol.dflt_value, "'system'");
@@ -49,7 +49,7 @@ test("provider_connections has owner_user_id defaulting to 'system'", () => {
 
 test("api_keys has owner_user_id defaulting to 'system'", () => {
   const db = core.getDbInstance();
-  const cols = db.prepare("PRAGMA table_info(api_keys)").all() as any[];
+  const cols = db.prepare("PRAGMA table_info(api_keys)").all() as Array<{ name: string; dflt_value?: string }>;
   assert.ok(cols.find((c) => c.name === "owner_user_id"));
 });
 

@@ -28,7 +28,7 @@ test.after(() => {
 
 test("migration 119 creates stripe tables", () => {
   const db = core.getDbInstance();
-  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[];
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>;
   const names = new Set(tables.map((t) => t.name));
   assert.ok(names.has("stripe_topup_intents"));
   assert.ok(names.has("stripe_payout_requests"));
@@ -53,7 +53,7 @@ test("handleCheckoutCompleted credits the wallet via topUpWallet", async () => {
   });
   assert.equal(result, true);
   assert.equal(walletMod.getWalletBalance(user.id), 25.0);
-  const intent = db.prepare("SELECT * FROM stripe_topup_intents WHERE id = ?").get(intentId) as any;
+  const intent = db.prepare("SELECT * FROM stripe_topup_intents WHERE id = ?").get(intentId) as { status: string };
   assert.equal(intent.status, "succeeded");
 });
 
@@ -87,13 +87,13 @@ test("requestPayout debits the wallet and creates a 'pending' payout row", () =>
 test("requestPayout rejects amounts below $10 minimum", () => {
   const user = usersDb.createUser({ email: "payout-min@example.com", passwordHash: "x" });
   walletMod.topUpWallet(user.id, 100.0, "idem-topup-payout-2");
-  assert.throws(() => stripeMod.requestPayout({ userId: user.id, amountUsd: 5.0 }), (err: any) => err.code === "below_minimum");
+  assert.throws(() => stripeMod.requestPayout({ userId: user.id, amountUsd: 5.0 }), (err: unknown) => (err as { code?: string }).code === "below_minimum");
 });
 
 test("requestPayout rejects when wallet has insufficient balance", () => {
   const user = usersDb.createUser({ email: "payout-poor@example.com", passwordHash: "x" });
   walletMod.topUpWallet(user.id, 20.0, "idem-topup-payout-3");
-  assert.throws(() => stripeMod.requestPayout({ userId: user.id, amountUsd: 50.0 }), (err: any) => err.code === "insufficient_balance");
+  assert.throws(() => stripeMod.requestPayout({ userId: user.id, amountUsd: 50.0 }), (err: unknown) => (err as { code?: string }).code === "insufficient_balance");
 });
 
 test("markPayoutPaid transitions a payout row to 'paid'", () => {

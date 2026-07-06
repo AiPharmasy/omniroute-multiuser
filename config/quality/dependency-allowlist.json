@@ -111,6 +111,7 @@
     "socks",
     "sql.js",
     "sqlite-vec",
+    "stripe",
     "tailwind-merge",
     "tailwindcss",
     "tls-client-node",

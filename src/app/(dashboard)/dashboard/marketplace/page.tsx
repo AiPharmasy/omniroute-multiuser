@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface Listing {
   id: string; slug: string; title: string; description: string | null;
@@ -16,18 +16,22 @@ export default function MarketplacePage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
-  useEffect(() => { load(); }, [search]);
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const url = `/api/marketplace/listings?isActive=true${search ? `&search=${encodeURIComponent(search)}` : ""}&limit=100`;
       const res = await fetch(url);
       if (!res.ok) { setError("Failed to load marketplace"); return; }
-      const data = await res.json(); setListings(data.listings || []);
-    } catch (err) { setError(err instanceof Error ? err.message : "Network error"); }
-    finally { setLoading(false); }
-  }
+      const data = await res.json();
+      setListings(data.listings || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setLoading(false);
+    }
+  }, [search]);
+
+  useEffect(() => { load(); }, [load]);
 
   return (
     <div style={{ padding: "2rem", fontFamily: "system-ui", color: "#fafafa", maxWidth: "1100px" }}>
@@ -49,7 +53,11 @@ export default function MarketplacePage() {
 }
 
 function ListingCard({ listing }: { listing: Listing }) {
-  const priceLabel = listing.pricingModel === "per_token" ? `$${listing.pricePer1kInputTokensUsd.toFixed(4)}/1K in · $${listing.pricePer1kOutputTokensUsd.toFixed(4)}/1K out` : listing.pricingModel === "per_request" ? `$${listing.pricePerRequestUsd.toFixed(4)}/request` : "Flat fee";
+  const priceLabel = listing.pricingModel === "per_token"
+    ? `$${listing.pricePer1kInputTokensUsd.toFixed(4)}/1K in · $${listing.pricePer1kOutputTokensUsd.toFixed(4)}/1K out`
+    : listing.pricingModel === "per_request"
+    ? `$${listing.pricePerRequestUsd.toFixed(4)}/request`
+    : "Flat fee";
   return (
     <div style={{ background: "#161616", border: "1px solid #2a2a2a", borderRadius: "8px", padding: "1.25rem" }}>
       <h3 style={{ fontSize: "1.05rem", marginBottom: "0.4rem" }}>{listing.title}</h3>
