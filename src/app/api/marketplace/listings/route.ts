@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sanitizeErrorMessage } from "@omniroute/open-sse/utils/error.ts";
 import { z } from "zod";
 import { createListing, listListings, ListingError } from "@/lib/marketplace/listings";
 import { verifyUserJwt } from "@/lib/auth/userAuth";
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
     const listing = createListing({ ...parsed.data, ownerUserId: actorUserId });
     return NextResponse.json({ listing }, { status: 201 });
   } catch (error) {
-    if (error instanceof ListingError) return NextResponse.json({ error: error.message }, { status: error.httpStatus });
+    if (error instanceof ListingError) return NextResponse.json({ error: sanitizeErrorMessage(error.message) }, { status: error.httpStatus });
     console.error("[MARKETPLACE] create failed:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

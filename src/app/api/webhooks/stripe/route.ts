@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sanitizeErrorMessage } from "@omniroute/open-sse/utils/error.ts";
 import { handleCheckoutCompleted, markPayoutPaid, markPayoutFailed, isStripeEnabled } from "@/lib/billing/stripe";
 
 function getStripeWebhookSecret(): string {
@@ -66,6 +67,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true, type: event.type });
   } catch (err: any) {
     console.error("[STRIPE WEBHOOK] handler failed:", err);
-    return NextResponse.json({ error: "Webhook handler failed", message: err.message }, { status: 500 });
+    return NextResponse.json({ error: "Webhook handler failed", message: sanitizeErrorMessage(err.message) }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sanitizeErrorMessage } from "@omniroute/open-sse/utils/error.ts";
 import { z } from "zod";
 import { verifyUserJwt } from "@/lib/auth/userAuth";
 import { isMultiUserModeEnabled } from "@/lib/db/users";
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
-    if (err instanceof StripeError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
+    if (err instanceof StripeError) return NextResponse.json({ error: sanitizeErrorMessage(err.message) }, { status: err.httpStatus });
     console.error("[STRIPE] topup failed:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
