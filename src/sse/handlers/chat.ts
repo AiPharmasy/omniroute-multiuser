@@ -340,6 +340,33 @@ export async function handleChat(
   const bypassProviderQuotaPolicy = hasProviderQuotaBypassScope(apiKeyInfo?.scopes);
   telemetry.endPhase();
 
+  // Multi-user platform: pre-flight wallet balance check.
+  // When OMNIROUTE_MULTI_USER=true AND the API key is owned by a real user
+  // (not the 'system' sentinel), reject with HTTP 402 before serving if the
+  // consumer's wallet can't cover a small per-request floor. The actual
+  // consumption is settled post-response by the billing listener.
+  try {
+    if (process.env.OMNIROUTE_MULTI_USER === "true" && apiKeyInfo?.id) {
+      const ownerUserId =
+        (apiKeyInfo as any).ownerUserId ?? (apiKeyInfo as any).owner_user_id ?? "system";
+      if (ownerUserId && ownerUserId !== "system") {
+        const floorUsd = Number(process.env.OMNIROUTE_MIN_REQUEST_FLOOR_USD ?? 0.01);
+        if (Number.isFinite(floorUsd) && floorUsd > 0) {
+          const { enforceConsumerBalance } = await import("../../lib/billing/consumption.ts");
+          if (!enforceConsumerBalance(ownerUserId, floorUsd)) {
+            return errorResponse(
+              HTTP_STATUS.PAYMENT_REQUIRED,
+              "Insufficient wallet balance. Top up at /dashboard/wallet to continue."
+            );
+          }
+        }
+      }
+    }
+  } catch (balanceCheckErr) {
+    const msg = balanceCheckErr instanceof Error ? balanceCheckErr.message : String(balanceCheckErr);
+    log.warn("BILLING", `Pre-flight wallet check failed (non-fatal): ${msg}`);
+  }
+
   // Guardrail pre-call pipeline — prompt injection, PII masking, and future custom rules.
   telemetry.startPhase("validate");
   const preCallGuardrails = await guardrailRegistry.runPreCallHooks(body, {

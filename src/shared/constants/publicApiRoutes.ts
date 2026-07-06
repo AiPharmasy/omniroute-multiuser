@@ -17,6 +17,13 @@ const PUBLIC_API_ROUTE_PREFIXES = [
   // The handler enforces its own auth via extractUsageCommandApiKey/isValidApiKey
   // and the allowUsageCommand flag — it must not be gated by management auth.
   "/api/usage/om-usage",
+  // Multi-user platform: registration endpoint is open when OMNIROUTE_MULTI_USER
+  // is enabled (the handler 403s otherwise). Stripe webhook verifies its own
+  // signature — no dashboard auth possible since Stripe is the caller.
+  "/api/auth/register",
+  "/api/webhooks/stripe",
+  // Marketplace browse is public (GET). POST requires auth (handler enforces).
+  "/api/marketplace/listings",
 ];
 
 const PUBLIC_READONLY_API_ROUTE_PREFIXES = [
