@@ -41,19 +41,46 @@ interface DbLike {
 
 // ──────────────── Provider Connections ────────────────
 
-export async function getProviderConnections(filter: JsonRecord = {}) {
+export interface ProviderConnectionFilter {
+  provider?: string | string[];
+  isActive?: boolean;
+  ownerUserId?: string;
+  includePublic?: boolean;
+  ids?: string[];
+}
+
+export async function getProviderConnections(filter: ProviderConnectionFilter | JsonRecord = {}) {
   const db = getDbInstance() as unknown as DbLike;
   let sql = "SELECT * FROM provider_connections";
   const conditions: string[] = [];
   const params: Record<string, unknown> = {};
 
   if (filter.provider) {
-    conditions.push("provider = @provider");
-    params.provider = filter.provider;
+    if (Array.isArray(filter.provider) && filter.provider.length > 0) {
+      const placeholders = filter.provider.map((_, i) => `@provider${i}`).join(",");
+      conditions.push(`provider IN (${placeholders})`);
+      filter.provider.forEach((p, i) => { params[`provider${i}`] = p; });
+    } else if (typeof filter.provider === "string") {
+      conditions.push("provider = @provider");
+      params.provider = filter.provider;
+    }
   }
   if (filter.isActive !== undefined) {
     conditions.push("is_active = @isActive");
     params.isActive = filter.isActive ? 1 : 0;
+  }
+  if (typeof filter.ownerUserId === "string" && filter.ownerUserId.length > 0) {
+    if (filter.includePublic) {
+      conditions.push("(owner_user_id = @ownerUserId OR is_public = 1)");
+    } else {
+      conditions.push("owner_user_id = @ownerUserId");
+    }
+    params.ownerUserId = filter.ownerUserId;
+  }
+  if (Array.isArray(filter.ids) && filter.ids.length > 0) {
+    const placeholders = filter.ids.map((_, i) => `@id${i}`).join(",");
+    conditions.push(`id IN (${placeholders})`);
+    filter.ids.forEach((id, i) => { params[`id${i}`] = id; });
   }
 
   if (conditions.length > 0) {
@@ -293,6 +320,9 @@ export async function createProviderConnection(data: JsonRecord) {
     updatedAt: now,
     proxyEnabled: normalizeBooleanColumn(data.proxyEnabled, true),
     perKeyProxyEnabled: normalizeBooleanColumn(data.perKeyProxyEnabled, false),
+    ownerUserId: typeof data.ownerUserId === "string" && data.ownerUserId.length > 0 ? data.ownerUserId : "system",
+    isPublic: data.isPublic === true || data.isPublic === 1 ? 1 : 0,
+    marketplaceListingId: typeof data.marketplaceListingId === "string" ? data.marketplaceListingId : null,
   };
 
   // Optional fields
@@ -383,6 +413,7 @@ function _insertConnectionRow(db: DbLike, conn: JsonRecord) {
       expires_in, display_name, global_priority, default_model,
       token_type, consecutive_use_count, rate_limit_protection, last_used_at, "group", max_concurrent,
       proxy_enabled, per_key_proxy_enabled, quota_window_thresholds_json, rate_limit_overrides_json,
+      owner_user_id, is_public, marketplace_listing_id,
       created_at, updated_at
     ) VALUES (
       @id, @provider, @authType, @name, @email, @priority, @isActive,
@@ -394,6 +425,7 @@ function _insertConnectionRow(db: DbLike, conn: JsonRecord) {
       @expiresIn, @displayName, @globalPriority, @defaultModel,
       @tokenType, @consecutiveUseCount, @rateLimitProtection, @lastUsedAt, @group, @maxConcurrent,
       @proxyEnabled, @perKeyProxyEnabled, @quotaWindowThresholdsJson, @rateLimitOverridesJson,
+      @ownerUserId, @isPublic, @marketplaceListingId,
       @createdAt, @updatedAt
     )
   `
@@ -442,6 +474,9 @@ function _insertConnectionRow(db: DbLike, conn: JsonRecord) {
     perKeyProxyEnabled: normalizeBooleanColumn(conn.perKeyProxyEnabled, false) ? 1 : 0,
     quotaWindowThresholdsJson: serializeJsonField(conn.quotaWindowThresholds),
     rateLimitOverridesJson: serializeJsonField(conn.rateLimitOverrides),
+    ownerUserId: typeof conn.ownerUserId === "string" && conn.ownerUserId.length > 0 ? conn.ownerUserId : "system",
+    isPublic: conn.isPublic === true || conn.isPublic === 1 ? 1 : 0,
+    marketplaceListingId: typeof conn.marketplaceListingId === "string" ? conn.marketplaceListingId : null,
     createdAt: conn.createdAt,
     updatedAt: conn.updatedAt,
   });

@@ -25,7 +25,7 @@ import {
   storeCompletedDetail,
 } from "./completedRequestDetails";
 import { shouldPersistToDisk } from "./migrations";
-import { emitUsageRecorded } from "./usageEvents";
+import { emitUsageRecorded, emitUsageRecordedFull } from "./usageEvents";
 import {
   getLoggedInputTokens,
   getLoggedOutputTokens,
@@ -582,6 +582,7 @@ export async function saveRequestUsage(entry: any) {
     // + connectionId + apiKeyId + token counts. If only the endpoint is missing
     // on the existing row, fill it in rather than inserting a duplicate.
     let inserted = false;
+    let insertedId: number | null = null;
 
     db.transaction(() => {
       const existing = db
@@ -651,6 +652,7 @@ export async function saveRequestUsage(entry: any) {
       );
 
       inserted = true;
+      insertedId = Number((db as any).lastInsertRowid ?? null);
     })();
 
     // Decoupled via the event bus so usageHistory never imports providerLimits
@@ -658,6 +660,18 @@ export async function saveRequestUsage(entry: any) {
     // Only emit when a row was actually inserted — not on dedup no-ops.
     if (inserted) {
       emitUsageRecorded(entry.provider, entry.connectionId);
+      emitUsageRecordedFull({
+        usageHistoryId: insertedId ?? 0,
+        provider: entry.provider || null,
+        connectionId: entry.connectionId || null,
+        apiKeyId: entry.apiKeyId || null,
+        model: entry.model || null,
+        tokensInput,
+        tokensOutput,
+        status: entry.status || null,
+        success: entry.success !== false,
+        entry: entry as Record<string, unknown>,
+      });
     }
   } catch (error) {
     console.error("Failed to save usage stats:", error);
