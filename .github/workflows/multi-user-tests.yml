@@ -2,7 +2,7 @@ name: Multi-User Tests
 
 on:
   push:
-    branches: [main, "phase/**", "fix/**"]
+    branches: [main, "phase/**", "fix/**", "feat/**"]
   pull_request:
     branches: [main]
 
@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci --no-audit --no-fund
-      - name: Multi-user unit tests
+      - name: Multi-user unit + integration tests
         run: |
           node --import tsx/esm --import ./open-sse/utils/setupPolyfill.ts --import ./tests/_setup/isolateDataDir.ts --test --test-force-exit \
             tests/unit/migration-116-smoke.test.ts \
@@ -31,7 +31,8 @@ jobs:
             tests/unit/multi-user-wallet.test.ts \
             tests/unit/multi-user-marketplace.test.ts \
             tests/unit/multi-user-stripe.test.ts \
-            tests/unit/multi-user-preflight-gating.test.ts
+            tests/unit/multi-user-preflight-gating.test.ts \
+            tests/unit/multi-user-e2e-flows.test.ts
       - name: Typecheck
         run: npm run typecheck:core
       - name: Lint multi-user files
@@ -47,4 +48,5 @@ jobs:
             "src/app/(dashboard)/dashboard/wallet/" \
             "src/app/(dashboard)/dashboard/account/" \
             "src/app/(dashboard)/dashboard/marketplace/" \
-            tests/unit/migration-116-smoke.test.ts tests/unit/multi-user-*.test.ts
+            tests/unit/migration-116-smoke.test.ts tests/unit/multi-user-*.test.ts \
+            tests/e2e/multi-user-flows.spec.ts
