@@ -177,6 +177,11 @@ const EXTRA_MODULE_ENTRIES = [
     dest: ["node_modules", "playwright-core"],
   },
   {
+    label: "stripe SDK (multi-user platform billing — dynamic import by stripe.ts)",
+    src: ["node_modules", "stripe"],
+    dest: ["node_modules", "stripe"],
+  },
+  {
     label: "sqlite-vec wrapper (vector memory - loaded at runtime via createRequire)",
     src: ["node_modules", "sqlite-vec"],
     dest: ["node_modules", "sqlite-vec"],
