@@ -1,6 +1,6 @@
 # Deploy with Docker (Multi-User Mode)
 
-Launch OmniRoute as a multi-user platform in 3 commands. No docker-compose needed.
+Launch OmniRoute as a multi-user platform. No docker-compose needed.
 
 ---
 
@@ -13,11 +13,10 @@ cd omniroute-multiuser
 
 # 2. Create your .env from template
 cp .env.docker.example .env
-# Edit .env — at minimum change JWT_SECRET and API_KEY_SECRET
-nano .env
+nano .env  # change JWT_SECRET, API_KEY_SECRET, INITIAL_PASSWORD
 
 # 3. Build + Run
-docker build --target runner-base -t omniroute-multiuser .
+docker build -f Dockerfile.multiuser -t omniroute-multiuser .
 docker run -d \
   --name omniroute \
   -p 20128:20128 \
@@ -26,13 +25,39 @@ docker run -d \
   omniroute-multiuser
 ```
 
-That's it. Open `http://localhost:20128/register` to create your first user.
+Open `http://localhost:20128/register` to create your first user.
+
+---
+
+## Build fails with "OOMKilled" / "Not enough memory"?
+
+If your Docker host has less than 4GB RAM, the standard Dockerfile will fail.
+Use `Dockerfile.multiuser` instead (it's optimized for low-memory builds):
+
+```bash
+docker build -f Dockerfile.multiuser -t omniroute-multiuser .
+```
+
+This uses a 2048MB heap limit during build instead of 4096MB.
+
+If it STILL fails (e.g. on a 1GB VPS), add swap:
+
+```bash
+# Create 2GB swap on the host
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# Now rebuild
+docker build -f Dockerfile.multiuser -t omniroute-multiuser .
+```
 
 ---
 
 ## The .env File
 
-Copy `.env.docker.example` to `.env` and fill in these values:
+Copy `.env.docker.example` to `.env` and fill in:
 
 ### Must change
 
@@ -50,13 +75,14 @@ OMNIROUTE_DEFAULT_COMMISSION_RATE=0.10
 OMNIROUTE_MIN_REQUEST_FLOOR_USD=0.01
 ```
 
-### Stripe (optional — leave empty if you don't want payments yet)
+### Stripe (optional)
 
 ```env
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PUBLISHABLE_KEY=pk_test_...
 ```
+
+Leave Stripe empty if you don't want payments yet. You can always add it later.
 
 ---
 
@@ -83,7 +109,6 @@ docker logs omniroute
 # Look for: [STARTUP] Multi-user billing listener initialized
 
 curl http://localhost:20128/api/monitoring/health
-# Should return: {"status":"ok",...}
 ```
 
 ---
@@ -95,8 +120,8 @@ docker stop omniroute       # stop
 docker start omniroute      # start
 docker restart omniroute    # restart
 docker logs -f omniroute    # follow logs
-docker rm -f omniroute      # remove container (data stays)
-docker volume rm omniroute-data  # nuke all data (users, wallets, everything)
+docker rm -f omniroute      # remove container (data stays in volume)
+docker volume rm omniroute-data  # delete ALL data (users, wallets, providers)
 ```
 
 ---
@@ -105,27 +130,26 @@ docker volume rm omniroute-data  # nuke all data (users, wallets, everything)
 
 ```bash
 git pull origin main
-docker build --target runner-base -t omniroute-multiuser .
+docker build -f Dockerfile.multiuser -t omniroute-multiuser .
 docker rm -f omniroute
 docker run -d --name omniroute -p 20128:20128 -v omniroute-data:/app/data --env-file .env omniroute-multiuser
 ```
 
-Your users, wallets, and providers are preserved in the `omniroute-data` volume.
+Data is preserved in the `omniroute-data` volume.
 
 ---
 
-## Deploy to a VPS (remote server)
+## Deploy to a VPS
 
 ```bash
 # On the VPS:
 git clone https://github.com/AiPharmasy/omniroute-multiuser.git
 cd omniroute-multiuser
 cp .env.docker.example .env
-# Edit .env with your secrets
 nano .env
 
-# Build + run
-docker build --target runner-base -t omniroute-multiuser .
+# Build + run (use Dockerfile.multiuser for low-RAM VPS)
+docker build -f Dockerfile.multiuser -t omniroute-multiuser .
 docker run -d \
   --name omniroute \
   -p 20128:20128 \
@@ -134,8 +158,8 @@ docker run -d \
   --restart unless-stopped \
   omniroute-multiuser
 
-# Set up a reverse proxy (nginx/caddy) with TLS for production
-# Point stripe webhooks to https://your-domain/api/webhooks/stripe
+# Set up nginx/caddy with TLS for production
+# Point Stripe webhooks to https://your-domain/api/webhooks/stripe
 ```
 
 ---
@@ -144,9 +168,9 @@ docker run -d \
 
 | Problem | Fix |
 |---|---|
+| Build: OOMKilled | Use `Dockerfile.multiuser` (lower memory) or add swap |
 | "Registration is disabled" | `OMNIROUTE_MULTI_USER` not set to `true` in `.env` |
-| "Stripe is not configured" | `STRIPE_SECRET_KEY` is empty in `.env` — top-ups disabled |
-| Can't access on port 20128 | Check `docker port omniroute` — port might be taken |
-| Database migration errors | `docker logs omniroute 2>&1 \| grep -i migration` |
+| "Stripe is not configured" | `STRIPE_SECRET_KEY` is empty — top-ups disabled (that's OK) |
+| Can't access port 20128 | Check `docker port omniroute` — port might be taken |
+| Database errors | `docker logs omniroute 2>&1 \| grep -i migration` |
 | Want to start fresh | `docker rm -f omniroute && docker volume rm omniroute-data` |
-| Build fails on `stripe` | Run `git pull` and rebuild — stripe SDK was added to assembleStandalone |

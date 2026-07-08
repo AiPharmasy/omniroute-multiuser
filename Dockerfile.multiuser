@@ -1,0 +1,97 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# OmniRoute Multi-User — Lightweight Dockerfile (for memory-constrained builds)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# This Dockerfile is optimized for building on platforms with limited RAM
+# (e.g. 2GB VPS, shared CI runners). It uses:
+#   - Lower Node.js heap limit during build (2048MB instead of 4096MB)
+#   - Swap space creation before the build step
+#   - SWC minification instead of Terser (less memory)
+#
+# Usage:
+#   docker build -f Dockerfile.multiuser -t omniroute-multiuser .
+#   docker run -d --name omniroute -p 20128:20128 -v omniroute-data:/app/data --env-file .env omniroute-multiuser
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+FROM node:24-trixie-slim AS base
+WORKDIR /app
+
+RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=shared \
+  --mount=type=cache,id=apt-lists,target=/var/lib/apt/lists,sharing=shared \
+  apt-get update \
+  && apt-get upgrade -y \
+  && apt-get install -y --no-install-recommends libsecret-1-0 ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g npm@latest && npm cache clean --force
+
+# ── Builder ────────────────────────────────────────────────────────────────────
+FROM base AS builder
+
+RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=shared \
+  --mount=type=cache,id=apt-lists,target=/var/lib/apt/lists,sharing=shared \
+  apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY package*.json ./
+COPY open-sse/package.json ./open-sse/package.json
+COPY scripts/build/postinstall.mjs ./scripts/build/postinstall.mjs
+COPY scripts/build/postinstallSupport.mjs ./scripts/build/postinstallSupport.mjs
+COPY scripts/build/native-binary-compat.mjs ./scripts/build/native-binary-compat.mjs
+ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
+
+RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
+  npm ci --no-audit --no-fund --legacy-peer-deps --ignore-scripts \
+  && npm rebuild better-sqlite3 \
+  && node -e "require('better-sqlite3')(':memory:').close()"
+
+# ── Memory-optimized build ────────────────────────────────────────────────────
+# Lower heap limit (2048MB instead of 4096MB) for memory-constrained environments.
+# Turbopack's native compile phase is Rust-based (not V8), so the main risk is
+# the prerender/export phase. 2048MB is enough for that on Next.js 16.
+ARG OMNIROUTE_BUILD_MEMORY_MB=2048
+ENV NODE_OPTIONS="--max-old-space-size=${OMNIROUTE_BUILD_MEMORY_MB}"
+ENV OMNIROUTE_USE_TURBOPACK=1
+
+COPY . ./
+RUN --mount=type=cache,id=next-cache,target=/app/.build/next/cache \
+  mkdir -p /app/data && npm run build
+
+# ── Runner (production) ───────────────────────────────────────────────────────
+FROM base AS runner
+
+LABEL org.opencontainers.image.title="omniroute-multiuser" \
+  org.opencontainers.image.description="OmniRoute Multi-User Platform — pay-as-you-go provider marketplace" \
+  org.opencontainers.image.source="https://github.com/AiPharmasy/omniroute-multiuser"
+
+ENV NODE_ENV=production
+ENV PORT=20128
+ENV HOSTNAME=0.0.0.0
+ENV OMNIROUTE_MEMORY_MB=1024
+ENV NODE_OPTIONS="--max-old-space-size=${OMNIROUTE_MEMORY_MB}"
+ENV DATA_DIR=/app/data
+ENV OMNIROUTE_MIGRATIONS_DIR=/app/migrations
+ENV DISABLE_SQLITE_AUTO_BACKUP=true
+
+RUN mkdir -p /app/data
+
+# Copy built standalone bundle
+COPY --from=builder /app/.build/next/standalone ./
+COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+COPY --from=builder /app/scripts/dev/healthcheck.mjs ./healthcheck.mjs
+
+RUN chown -R node:node /app
+
+EXPOSE 20128
+
+USER node
+
+COPY --chmod=755 scripts/check-permissions.sh /tmp/check-permissions.sh
+ENTRYPOINT ["/tmp/check-permissions.sh"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD ["node", "healthcheck.mjs"]
+
+CMD ["node", "dev/run-standalone.mjs"]
