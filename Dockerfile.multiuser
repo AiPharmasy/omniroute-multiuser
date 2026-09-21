@@ -14,7 +14,7 @@
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-FROM node:24-trixie-slim AS base
+FROM node:25-trixie-slim AS base
 WORKDIR /app
 
 RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=shared \
