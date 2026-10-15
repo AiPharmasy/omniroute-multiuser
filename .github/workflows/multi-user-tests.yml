@@ -18,7 +18,7 @@ jobs:
       JWT_SECRET: ci-test-jwt-secret-32chars-min
       API_KEY_SECRET: ci-test-api-key-secret
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
